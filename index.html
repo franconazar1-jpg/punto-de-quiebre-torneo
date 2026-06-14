@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Punto de Quiebre - Torneo</title>
+<style>
+body{font-family:Arial;margin:0;background:#111;color:white}
+header{background:#f26a21;padding:18px;text-align:center}
+h1{margin:0}.box{background:#1d1d1d;margin:12px;padding:14px;border-radius:12px}
+input,button{padding:9px;margin:4px;border-radius:8px;border:0}
+input{width:90%;background:#eee}
+button{background:#f26a21;color:white;font-weight:bold}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+td,th{border-bottom:1px solid #444;padding:6px;text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>PUNTO DE QUIEBRE</h1>
+<p>Torneo 16 jugadores - Grupos y eliminación directa</p>
+</header>
+
+<div class="box">
+<h2>1. Cargar grupos manualmente</h2>
+<div class="grid" id="grupos"></div>
+<button onclick="guardarGrupos()">Guardar grupos</button>
+</div>
+
+<div class="box">
+<h2>2. Resultados zona de grupos</h2>
+<div id="partidos"></div>
+<button onclick="calcular()">Calcular tablas</button>
+</div>
+
+<div class="box">
+<h2>3. Posiciones</h2>
+<div id="tablas"></div>
+<button onclick="crearCuartos()">Crear cuartos de final</button>
+</div>
+
+<div class="box">
+<h2>4. Eliminación directa</h2>
+<div id="cuadro"></div>
+</div>
+
+<script>
+let grupos = JSON.parse(localStorage.getItem("gruposPQ")) || {
+A:["","","",""],B:["","","",""],C:["","","",""],D:["","","",""]
+};
+
+let resultados = JSON.parse(localStorage.getItem("resultadosPQ")) || {};
+let clasificados = {};
+
+function renderGrupos(){
+ let html="";
+ ["A","B","C","D"].forEach(g=>{
+  html+=`<div class="box"><h3>Grupo ${g}</h3>`;
+  for(let i=0;i<4;i++){
+   html+=`<input id="${g}${i}" value="${grupos[g][i]}" placeholder="Jugador ${i+1}"><br>`;
+  }
+  html+=`</div>`;
+ });
+ document.getElementById("grupos").innerHTML=html;
+}
+
+function guardarGrupos(){
+ ["A","B","C","D"].forEach(g=>{
+  for(let i=0;i<4;i++) grupos[g][i]=document.getElementById(g+i).value;
+ });
+ localStorage.setItem("gruposPQ",JSON.stringify(grupos));
+ generarPartidos();
+ alert("Grupos guardados");
+}
+
+function generarPartidos(){
+ let html="";
+ const cruces=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+ ["A","B","C","D"].forEach(g=>{
+  html+=`<div class="box"><h3>Grupo ${g}</h3>`;
+  cruces.forEach((c,i)=>{
+   let key=g+i;
+   let r=resultados[key] || ["",""];
+   html+=`
+   <div>
+   ${grupos[g][c[0]] || "Jugador"} 
+   <input type="number" id="${key}a" value="${r[0]}" style="width:55px">
+   -
+   <input type="number" id="${key}b" value="${r[1]}" style="width:55px">
+   ${grupos[g][c[1]] || "Jugador"}
+   </div>`;
+  });
+  html+=`</div>`;
+ });
+ document.getElementById("partidos").innerHTML=html;
+}
+
+function calcular(){
+ const cruces=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+ let html="";
+ ["A","B","C","D"].forEach(g=>{
+  let tabla=grupos[g].map(n=>({nombre:n,pts:0,gf:0,gc:0,dif:0}));
+  cruces.forEach((c,i)=>{
+   let key=g+i;
+   let ga=document.getElementById(key+"a").value;
+   let gb=document.getElementById(key+"b").value;
+   resultados[key]=[ga,gb];
+   if(ga!=="" && gb!=="" && ga!=gb){
+    ga=Number(ga); gb=Number(gb);
+    tabla[c[0]].gf+=ga; tabla[c[0]].gc+=gb;
+    tabla[c[1]].gf+=gb; tabla[c[1]].gc+=ga;
+    if(ga>gb) tabla[c[0]].pts+=1;
+    else tabla[c[1]].pts+=1;
+   }
+  });
+  tabla.forEach(j=>j.dif=j.gf-j.gc);
+  tabla.sort((a,b)=>b.pts-a.pts || b.dif-a.dif || b.gf-a.gf);
+  clasificados[g]=tabla.slice(0,2);
+  html+=`<div class="box"><h3>Grupo ${g}</h3>
+  <table><tr><th>#</th><th>Jugador</th><th>Pts</th><th>GF</th><th>GC</th><th>Dif</th></tr>`;
+  tabla.forEach((j,i)=>{
+   html+=`<tr><td>${i+1}</td><td>${j.nombre}</td><td>${j.pts}</td><td>${j.gf}</td><td>${j.gc}</td><td>${j.dif}</td></tr>`;
+  });
+  html+=`</table></div>`;
+ });
+ localStorage.setItem("resultadosPQ",JSON.stringify(resultados));
+ document.getElementById("tablas").innerHTML=html;
+}
+
+function crearCuartos(){
+ calcular();
+ let q=[
+  [clasificados.A[0].nombre,clasificados.B[1].nombre],
+  [clasificados.B[0].nombre,clasificados.A[1].nombre],
+  [clasificados.C[0].nombre,clasificados.D[1].nombre],
+  [clasificados.D[0].nombre,clasificados.C[1].nombre]
+ ];
+ let html="<h3>Cuartos de final</h3>";
+ q.forEach((m,i)=>{
+  html+=`<div class="box">QF${i+1}: <b>${m[0]}</b> vs <b>${m[1]}</b></div>`;
+ });
+ html+=`
+ <h3>Semifinales</h3>
+ <div class="box">Ganador QF1 vs Ganador QF2</div>
+ <div class="box">Ganador QF3 vs Ganador QF4</div>
+ <h3>Final</h3>
+ <div class="box">Ganador SF1 vs Ganador SF2</div>`;
+ document.getElementById("cuadro").innerHTML=html;
+}
+
+renderGrupos();
+generarPartidos();
+calcular();
+</script>
+
+</body>
+</html>
